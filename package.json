@@ -1,6 +1,6 @@
 {
   "name": "soba-client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "client-side part of SoBa socket-based communication",
   "main": "lib/main.js",
   "scripts": {
