@@ -73,6 +73,7 @@ sio_client.on 'connect', ( P... ) ->
   # debug '©YVHz3', sio_client.nsp
   # sio_client.emit 'gimme-json'
   sio_client.emit 'helo'
+  sio_client.emit 'news', 'everyone should know', { foo: 42, }
 
 sio_client.on 'helo', ( data ) =>
   help 'updated-client-id', data[ 'client-id' ]
