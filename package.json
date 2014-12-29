@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/loveencounterflow/soba-client/issues"
   },
-  "homepage": "https://github.com/loveencounterflow/soba-client"
+  "homepage": "https://github.com/loveencounterflow/soba-client",
+  "dependencies": {
+    "socket.io-client": "^1.2.1"
+  }
 }
