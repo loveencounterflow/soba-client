@@ -63,7 +63,7 @@ socket.on 'reconnecting',      -> help "client: reconnecting"
 
 #-----------------------------------------------------------------------------------------------------------
 socket.on 'news', ( message... ) ->
-  info 'news:', message
+  whisper 'news:', message
 
 # opts.query.uid
 
@@ -83,27 +83,29 @@ socket.on 'connect', ( P... ) ->
   socket.emit 'news', 'everyone should know', { foo: 42, }
   # socket.emit 'get', [ 'some/key:', ]
   # socket.emit 'get', { gte: 'some/key:' }
+  SOBAC.dump socket, 'A', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
+  SOBAC.dump socket, 'B', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
+  SOBAC.dump socket, 'C', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
+
+#-----------------------------------------------------------------------------------------------------------
+f = ( socket ) ->
   for idx in [ 0 .. 20 ]
     idx_txt = TEXT.flush_right idx, 3, '0'
     key     = "key-#{idx_txt}"
     value   = "value-##{idx_txt}"
     socket.emit 'put', [ key, value, ]
-  # socket.emit 'dump', { take: 10, format: 'list' }
-  # socket.emit 'dump', { take: 3, format: 'one-by-one' }
-  # socket.emit 'dump', { take: 3, format: 'one-by-one' }
-  # socket.emit 'dump', { take: 3, format: 'list' }, ( P... ) ->
-  #   debug '©EzIzK', P
-  SOBAC.dump socket, { take: 3, format: 'list' }, ( P... ) ->
-    debug '©fTwiH', P
+
 
 #-----------------------------------------------------------------------------------------------------------
-@dump = ( me, settings, handler ) ->
+@dump = ( me, _XXX_name, settings, handler ) ->
   stream_settings =
     'encoding':       'utf-8'
     'decodeStrings':  yes # ???
     'objectMode':     yes
   stream    = wrap_as_socket_stream.createStream stream_settings
-  settings  = { take: 3, format: 'one-by-one' }
+  settings              ?= {}
+  settings[ 'take'     ]?= 10
+  settings[ 'format'   ]?= 'one-by-one'
   ### me[ '%socket' ] ###
   ( wrap_as_socket_stream me ).emit 'dump', stream, settings
   # output    = njs_fs.createWriteStream '/tmp/tailer', encoding: 'utf-8'
@@ -111,7 +113,7 @@ socket.on 'connect', ( P... ) ->
   stream
     .pipe D.$split()
     # .pipe $ ( line, send ) => send line.toString 'utf-8'
-    .pipe $ ( line, send ) => send JSON.parse line if line? and line.length > 0
+    .pipe $ ( line, send ) => send [ _XXX_name, JSON.parse line ] if line? and line.length > 0
     .pipe D.$show()
     # .pipe output
   #   .pipe D.$on_end = ( send, end ) =>
