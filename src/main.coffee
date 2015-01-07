@@ -28,7 +28,7 @@ njs_fs                    = require 'fs'
 #...........................................................................................................
 TRM                       = require 'coffeenode-trm'
 rpr                       = TRM.rpr.bind TRM
-badge                     = 'ソバ/SERVER'
+badge                     = 'ソバ/CLIENT'
 info                      = TRM.get_logger 'info',    badge
 alert                     = TRM.get_logger 'alert',   badge
 debug                     = TRM.get_logger 'debug',   badge
@@ -38,9 +38,11 @@ whisper                   = TRM.get_logger 'whisper', badge
 help                      = TRM.get_logger 'help',    badge
 #...........................................................................................................
 TEXT                      = require 'coffeenode-text'
+BNP                       = require 'coffeenode-bitsnpieces'
 #...........................................................................................................
 ### https://github.com/loveencounterflow/pipedreams ###
 D                         = require 'pipedreams'
+D2                        = require 'pipedreams2'
 $                         = D.remit.bind D
 #...........................................................................................................
 ### https://github.com/nkzawa/socket.io-stream ###
@@ -62,8 +64,8 @@ socket.on 'reconnect_failed',  -> help "client: reconnect_failed"
 socket.on 'reconnecting',      -> help "client: reconnecting"
 
 #-----------------------------------------------------------------------------------------------------------
-socket.on 'news', ( message... ) ->
-  whisper 'news:', message
+# socket.on 'news', ( message... ) ->
+#   whisper 'news:', message
 
 # opts.query.uid
 
@@ -83,9 +85,11 @@ socket.on 'connect', ( P... ) ->
   socket.emit 'news', 'everyone should know', { foo: 42, }
   # socket.emit 'get', [ 'some/key:', ]
   # socket.emit 'get', { gte: 'some/key:' }
-  SOBAC.dump socket, 'A', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
-  SOBAC.dump socket, 'B', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
-  SOBAC.dump socket, 'C', { take: 3, format: 'list', prefix: 'so', }, ( P... ) -> debug '©fTwiH', P
+  count       = 20
+  skip_count  = 100
+  limit       = skip_count + count
+  SOBAC.dump socket, { take: limit, skip: skip_count, format: 'one-by-one', prefix: 'os|reading', }, ( P... ) -> debug '©fTwiH', P
+  # SOBAC.test_dense_sort()
 
 #-----------------------------------------------------------------------------------------------------------
 f = ( socket ) ->
@@ -95,30 +99,93 @@ f = ( socket ) ->
     value   = "value-##{idx_txt}"
     socket.emit 'put', [ key, value, ]
 
-
 #-----------------------------------------------------------------------------------------------------------
-@dump = ( me, _XXX_name, settings, handler ) ->
+@dump = ( me, settings, handler ) ->
   stream_settings =
     'encoding':       'utf-8'
     'decodeStrings':  yes # ???
     'objectMode':     yes
   stream    = wrap_as_socket_stream.createStream stream_settings
-  settings              ?= {}
-  settings[ 'take'     ]?= 10
-  settings[ 'format'   ]?= 'one-by-one'
+  settings             ?= {}
+  settings[ 'take'    ]?= 10
+  settings[ 'format'  ]?= 'one-by-one'
+  # skip_count            = 12000
+  # first_idx             = skip_count
   ### me[ '%socket' ] ###
   ( wrap_as_socket_stream me ).emit 'dump', stream, settings
   # output    = njs_fs.createWriteStream '/tmp/tailer', encoding: 'utf-8'
   ### TAINT using `split` as an expedient; should use streaming JSON decoder ###
   stream
-    .pipe D.$split()
-    # .pipe $ ( line, send ) => send line.toString 'utf-8'
-    .pipe $ ( line, send ) => send [ _XXX_name, JSON.parse line ] if line? and line.length > 0
-    .pipe D.$show()
-    # .pipe output
-  #   .pipe D.$on_end = ( send, end ) =>
-  #     handler null, 'dump finished'
-  #     end()
+    .pipe D2.$split()
+    # .pipe D2.$skip_first skip_count
+    .pipe $ ( line, send ) => send JSON.parse line if line? and line.length > 0
+    #.......................................................................................................
+    .pipe D2.$collect()
+    #.......................................................................................................
+    .pipe $ ( events, send ) =>
+      BNP.shuffle events, 0.2
+      send event for event in events
+    # #.......................................................................................................
+    # .pipe $ ( event, send ) =>
+    #   [ type, tail..., ] = event
+    #   if type is 'batch'
+    #     [ idx, { key, value }, ] = tail
+    #     whisper idx, key
+    #   send event
+    #.......................................................................................................
+    .pipe D2.$dense_sort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
+      percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
+      efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
+      info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
+        efficiency: #{efficiency}"""
+    #.......................................................................................................
+    .pipe $ ( event, send ) =>
+      [ type, tail..., ] = event
+      if type is 'batch'
+        [ idx, { key, value }, ] = tail
+        help idx, key
+      send event
+    #.......................................................................................................
+    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    .pipe D.$on_end ( send, end ) =>
+      process.exit()
+
+#-----------------------------------------------------------------------------------------------------------
+@test_dense_sort = ( me ) ->
+  input = D.create_throughstream()
+  input
+    #.......................................................................................................
+    .pipe $ ( event, send ) =>
+      [ type, tail..., ] = event
+      if type is 'batch'
+        [ idx, letter, ] = tail
+        whisper idx, letter
+      send event
+    #.......................................................................................................
+    .pipe D2.$dense_sort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
+      percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
+      efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
+      info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
+        efficiency: #{efficiency}"""
+    #.......................................................................................................
+    .pipe $ ( event, send ) =>
+      [ type, tail..., ] = event
+      if type is 'batch'
+        [ idx, letter, ] = tail
+        help idx, letter
+      send event
+    #.......................................................................................................
+    .pipe D.$on_end ( send, end ) =>
+      process.exit()
+  #.........................................................................................................
+  input.write [ 'batch', 0, 'A', ]
+  input.write [ 'batch', 2, 'C', ]
+  input.write [ 'batch', 4, 'E', ]
+  input.write [ 'batch', 5, 'F', ]
+  input.write [ 'batch', 1, 'B', ]
+  input.write [ 'batch', 3, 'D', ]
+  # input.write [ 'batch', 3, 'C', ]
+  input.end()
 
 # #-----------------------------------------------------------------------------------------------------------
 # ### TAINT should be members of soba client representative ('me') ###
