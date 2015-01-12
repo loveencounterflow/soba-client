@@ -26,19 +26,18 @@ Y88b  d88P Y88b. .d88P 888   d88P  d8888888888    Y88b  d88P 888        888   88
 njs_path                  = require 'path'
 njs_fs                    = require 'fs'
 #...........................................................................................................
-TRM                       = require 'coffeenode-trm'
-rpr                       = TRM.rpr.bind TRM
+CND                       = require 'cnd'
+rpr                       = CND.rpr
 badge                     = 'ソバ/CLIENT'
-info                      = TRM.get_logger 'info',    badge
-alert                     = TRM.get_logger 'alert',   badge
-debug                     = TRM.get_logger 'debug',   badge
-warn                      = TRM.get_logger 'warn',    badge
-urge                      = TRM.get_logger 'urge',    badge
-whisper                   = TRM.get_logger 'whisper', badge
-help                      = TRM.get_logger 'help',    badge
+info                      = CND.get_logger 'info',    badge
+alert                     = CND.get_logger 'alert',   badge
+debug                     = CND.get_logger 'debug',   badge
+warn                      = CND.get_logger 'warn',    badge
+urge                      = CND.get_logger 'urge',    badge
+whisper                   = CND.get_logger 'whisper', badge
+help                      = CND.get_logger 'help',    badge
 #...........................................................................................................
 TEXT                      = require 'coffeenode-text'
-BNP                       = require 'coffeenode-bitsnpieces'
 #...........................................................................................................
 ### https://github.com/loveencounterflow/pipedreams ###
 D                         = require 'pipedreams'
@@ -69,6 +68,7 @@ socket.on 'reconnecting',      -> help "client: reconnecting"
 
 # opts.query.uid
 
+#-----------------------------------------------------------------------------------------------------------
 socket.on 'connect', ( P... ) ->
   # SIO_GRAPEVINE = socket.connect '/grapevine'
   # debug '©D8htg', SIO_GRAPEVINE.nsp
@@ -101,11 +101,26 @@ f = ( socket ) ->
 
 #-----------------------------------------------------------------------------------------------------------
 @dump = ( me, settings, handler ) ->
-  stream_settings =
+  CHR     = require 'coffeenode-chr'
+  glyphs  = CHR.chrs_from_text '〇一二三四五六七八九'
+  input   = D2.create_throughstream()
+  idx     = -1
+  input
+    .pipe $ ( chr, send ) ->
+      idx  += +1
+      key   = "so|glyph:#{glyph}|pod:$value|"
+      query = eq: key
+      send [ 'query', idx, query, ]
+    .pipe D2.$show()
+  for glyph in glyphs
+    input.write glyph
+  #.........................................................................................................
+  stream_settings       =
     'encoding':       'utf-8'
     'decodeStrings':  yes # ???
     'objectMode':     yes
-  stream    = wrap_as_socket_stream.createStream stream_settings
+  #.........................................................................................................
+  stream                = wrap_as_socket_stream.createStream stream_settings
   settings             ?= {}
   settings[ 'take'    ]?= 10
   settings[ 'format'  ]?= 'one-by-one'
@@ -114,16 +129,17 @@ f = ( socket ) ->
   ### me[ '%socket' ] ###
   ( wrap_as_socket_stream me ).emit 'dump', stream, settings
   # output    = njs_fs.createWriteStream '/tmp/tailer', encoding: 'utf-8'
+  #.........................................................................................................
   ### TAINT using `split` as an expedient; should use streaming JSON decoder ###
   stream
     .pipe D2.$split()
-    # .pipe D2.$skip_first skip_count
     .pipe $ ( line, send ) => send JSON.parse line if line? and line.length > 0
+    # .pipe D2.$show()
     #.......................................................................................................
     .pipe D2.$collect()
     #.......................................................................................................
     .pipe $ ( events, send ) =>
-      BNP.shuffle events, 0.2
+      CND.shuffle events, 0.2
       send event for event in events
     # #.......................................................................................................
     # .pipe $ ( event, send ) =>
@@ -132,12 +148,12 @@ f = ( socket ) ->
     #     [ idx, { key, value }, ] = tail
     #     whisper idx, key
     #   send event
-    #.......................................................................................................
-    .pipe D2.$dense_sort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
-      percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
-      efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
-      info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
-        efficiency: #{efficiency}"""
+    # #.......................................................................................................
+    # .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
+    #   percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
+    #   efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
+    #   info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
+    #     efficiency: #{efficiency}"""
     #.......................................................................................................
     .pipe $ ( event, send ) =>
       [ type, tail..., ] = event
