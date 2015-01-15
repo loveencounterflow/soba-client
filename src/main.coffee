@@ -44,8 +44,7 @@ D                         = require 'pipedreams'
 D2                        = require 'pipedreams2'
 $                         = D.remit.bind D
 #...........................................................................................................
-### https://github.com/nkzawa/socket.io-stream ###
-wrap_as_socket_stream     = require 'socket.io-stream'
+random_integer            = CND.get_rnd_int 592, 762
 #...........................................................................................................
 new_socket                = require 'socket.io-client'
 socket                    = new_socket 'http://0.0.0.0:3000/'
@@ -62,185 +61,115 @@ socket.on 'reconnect_error',   -> help "client: reconnect_error"
 socket.on 'reconnect_failed',  -> help "client: reconnect_failed"
 socket.on 'reconnecting',      -> help "client: reconnecting"
 
-#-----------------------------------------------------------------------------------------------------------
-# socket.on 'news', ( message... ) ->
-#   whisper 'news:', message
-
-# opts.query.uid
 
 #-----------------------------------------------------------------------------------------------------------
 socket.on 'connect', ( P... ) ->
-  # SIO_GRAPEVINE = socket.connect '/grapevine'
-  # debug '©D8htg', SIO_GRAPEVINE.nsp
-  # SIO_GRAPEVINE.on 'news', ( message ) ->
-  #   info '/grapevine/news:', message
-  #.........................................................................................................
-  # after 2, ->
-  # debug '©YVHz3', socket.nsp
-  # socket.emit 'gimme-json'
   help "SoBa ソバ Client running on Node v#{process.versions[ 'node' ]}"
   ### TAINT get address from connection / options ###
   help "SoBa ソバ Client connected to http://0.0.0.0:3000/"
   socket.emit 'helo'
-  socket.emit 'news', 'everyone should know', { foo: 42, }
-  # socket.emit 'get', [ 'some/key:', ]
-  # socket.emit 'get', { gte: 'some/key:' }
-  count       = 20
-  skip_count  = 100
-  limit       = skip_count + count
-  SOBAC.dump socket, { take: limit, skip: skip_count, format: 'one-by-one', prefix: 'os|reading', }, ( P... ) -> debug '©fTwiH', P
-  # SOBAC.test_dense_sort()
+  count       = 10
+  skip        = 0
+  limit       = skip + count
+  # prefix      = 'os|reading/py'
+  # prefix      = 'os|strokeorder/short:333|'
+  prefix      = 'so|glyph:彡|'
+  urge "prefix: #{rpr prefix}"
+  stream      = SOBAC.dump_ng socket, { take: limit, skip: skip, prefix: prefix, }
+  stream.pipe D2.$show()
+  # SOBAC.show_glyph_pods socket, null, ( P... ) -> debug '©81poA', P
 
-#-----------------------------------------------------------------------------------------------------------
-f = ( socket ) ->
-  for idx in [ 0 .. 20 ]
-    idx_txt = TEXT.flush_right idx, 3, '0'
-    key     = "key-#{idx_txt}"
-    value   = "value-##{idx_txt}"
-    socket.emit 'put', [ key, value, ]
-
-#-----------------------------------------------------------------------------------------------------------
-@dump = ( me, settings, handler ) ->
-  CHR     = require 'coffeenode-chr'
-  glyphs  = CHR.chrs_from_text '〇一二三四五六七八九'
-  input   = D2.create_throughstream()
-  idx     = -1
-  input
-    .pipe $ ( chr, send ) ->
-      idx  += +1
-      key   = "so|glyph:#{glyph}|pod:$value|"
-      query = eq: key
-      send [ 'query', idx, query, ]
-    .pipe D2.$show()
-  for glyph in glyphs
-    input.write glyph
-  #.........................................................................................................
-  stream_settings       =
-    'encoding':       'utf-8'
-    'decodeStrings':  yes # ???
-    'objectMode':     yes
-  #.........................................................................................................
-  stream                = wrap_as_socket_stream.createStream stream_settings
-  settings             ?= {}
-  settings[ 'take'    ]?= 10
-  settings[ 'format'  ]?= 'one-by-one'
-  # skip_count            = 12000
-  # first_idx             = skip_count
-  ### me[ '%socket' ] ###
-  ( wrap_as_socket_stream me ).emit 'dump', stream, settings
-  # output    = njs_fs.createWriteStream '/tmp/tailer', encoding: 'utf-8'
-  #.........................................................................................................
-  ### TAINT using `split` as an expedient; should use streaming JSON decoder ###
-  stream
-    .pipe D2.$split()
-    .pipe $ ( line, send ) => send JSON.parse line if line? and line.length > 0
-    # .pipe D2.$show()
-    #.......................................................................................................
-    .pipe D2.$collect()
-    #.......................................................................................................
-    .pipe $ ( events, send ) =>
-      CND.shuffle events, 0.2
-      send event for event in events
-    # #.......................................................................................................
-    # .pipe $ ( event, send ) =>
-    #   [ type, tail..., ] = event
-    #   if type is 'batch'
-    #     [ idx, { key, value }, ] = tail
-    #     whisper idx, key
-    #   send event
-    # #.......................................................................................................
-    # .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
-    #   percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
-    #   efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
-    #   info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
-    #     efficiency: #{efficiency}"""
-    #.......................................................................................................
-    .pipe $ ( event, send ) =>
-      [ type, tail..., ] = event
-      if type is 'batch'
-        [ idx, { key, value }, ] = tail
-        help idx, key
-      send event
-    #.......................................................................................................
-    # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    .pipe D.$on_end ( send, end ) =>
-      process.exit()
-
-#-----------------------------------------------------------------------------------------------------------
-@test_dense_sort = ( me ) ->
-  input = D.create_throughstream()
-  input
-    #.......................................................................................................
-    .pipe $ ( event, send ) =>
-      [ type, tail..., ] = event
-      if type is 'batch'
-        [ idx, letter, ] = tail
-        whisper idx, letter
-      send event
-    #.......................................................................................................
-    .pipe D2.$dense_sort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
-      percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
-      efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
-      info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
-        efficiency: #{efficiency}"""
-    #.......................................................................................................
-    .pipe $ ( event, send ) =>
-      [ type, tail..., ] = event
-      if type is 'batch'
-        [ idx, letter, ] = tail
-        help idx, letter
-      send event
-    #.......................................................................................................
-    .pipe D.$on_end ( send, end ) =>
-      process.exit()
-  #.........................................................................................................
-  input.write [ 'batch', 0, 'A', ]
-  input.write [ 'batch', 2, 'C', ]
-  input.write [ 'batch', 4, 'E', ]
-  input.write [ 'batch', 5, 'F', ]
-  input.write [ 'batch', 1, 'B', ]
-  input.write [ 'batch', 3, 'D', ]
-  # input.write [ 'batch', 3, 'C', ]
-  input.end()
 
 # #-----------------------------------------------------------------------------------------------------------
-# ### TAINT should be members of soba client representative ('me') ###
-# batch_id  = -1
-# batches   = {}
+# @show_glyph_pods = ( me, settings, handler ) ->
+#   CHR     = require 'coffeenode-chr'
+#   glyphs  = CHR.chrs_from_text '〇一二三四五六七八九'
+#   input   = D2.create_throughstream()
+#   idx     = -1
+#   #.........................................................................................................
+#   stream_settings       =
+#     'encoding':       'utf-8'
+#     'decodeStrings':  yes # ???
+#     'objectMode':     yes
+#   stream        = wrap_as_socket_stream.createStream stream_settings
+#   stream_socket = wrap_as_socket_stream socket
+#   #.........................................................................................................
+#   input
+#     .pipe $ ( chr, send ) ->
+#       idx  += +1
+#       key   = "so|glyph:#{glyph}|pod:$value|"
+#       query = eq: key
+#       event = [ 'query', 'get', query, ]
+#       batch = [ 'batch', idx, event, ]
+#       stream_socket.emit 'xxx', stream, batch
+#   #.........................................................................................................
+#   # stream
+#   #   .pipe D2.$show()
+#   #.........................................................................................................
+#   for glyph in glyphs
+#     input.write glyph
 
-# #-----------------------------------------------------------------------------------------------------------
-# @get_next_batch_id = ( me ) ->
-#   batch_id += 1
-#   return "bid#{batch_id}"
 
-# #-----------------------------------------------------------------------------------------------------------
-# @dump = ( me, settings, handler ) ->
-#   batch_id  = @get_next_batch_id me
-#   debug '©SeFJB', batch_id
-#   ### TAINT use HOLLERITH library method ###
-#   ### TAINT `type` is only first part; choose other name for string ###
-#   ### TAINT why do we transport batch ID in the event type string but other data in `settings`? ###
-#   type      = "dump|batch-id:#{batch_id}|"
-#   me.emit type, settings, ( P... ) ->
-#     debug '©l8KIb', P
-#     handler()
+#-----------------------------------------------------------------------------------------------------------
+@_new_id = -> random_integer 1e5, 1e6
 
+#-----------------------------------------------------------------------------------------------------------
+@dump_ng = ( me, settings ) ->
+  @emit_as_sorted_stream me, 'dump', settings
+
+#-----------------------------------------------------------------------------------------------------------
+@emit_as_stream         = ( me, type, data ) -> @_emit_as_stream me, type, data, no
+@emit_as_sorted_stream  = ( me, type, data ) -> @_emit_as_stream me, type, data, yes
+
+#-----------------------------------------------------------------------------------------------------------
+@_emit_as_stream = ( me, type, data, sorted ) ->
+  ### TAINT `me` simplifyingly set to `socket` ###
+  id            = @_new_id()
+  type_with_id  = "#{type}##{id}"
+  R             = D2.create_throughstream()
+  #.........................................................................................................
+  $unwrap = $ ( event, send ) =>
+    [ type, tail... ] = event
+    debug '©DlZ5w', 'unwrap'
+    if event[ 0 ] is 'batch'
+      [ _, _, payload..., ] = event
+      # send if payload.length is 1 then payload[ 0 ] else payload
+      send event
+  #.........................................................................................................
+  me.on type_with_id, ( event ) ->
+    if event?
+      R.write event
+    else
+      help "#{type_with_id} completed"
+      me.removeAllListeners type_with_id
+      R.end()
+  #.........................................................................................................
+  if sorted
+    R # = R
+      .pipe $ ( data, send ) ->
+        urge 'sort'
+        send data
+      .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
+        percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
+        efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
+        info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
+          efficiency: #{efficiency}"""
+      .pipe $unwrap
+  #.........................................................................................................
+  else
+    R
+      .pipe $unwrap
+  #.........................................................................................................
+  me.emit type_with_id, data
+  return R
+
+#-----------------------------------------------------------------------------------------------------------
 socket.on 'helo', ( data ) =>
   help 'updated-client-id', data[ 'client-id' ]
 
-# ### TAINT format of data depends on argument `format` in request settings;
-#   this would suggest to better use different event types than a setting so receiver method doesn't have
-#   to sort that out ###
-# ### TAINT need meta-data:
-#   request-id (?)
-#   idx (consecutive number)
-#   ###
-# socket.on 'dump', ( data ) =>
-#   help 'dump', data
-
-SOBAC = @
 
 ############################################################################################################
+SOBAC = @
 
 
 
