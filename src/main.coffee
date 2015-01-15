@@ -126,42 +126,45 @@ socket.on 'connect', ( P... ) ->
   ### TAINT `me` simplifyingly set to `socket` ###
   id            = @_new_id()
   type_with_id  = "#{type}##{id}"
+  ### TAINT couldn't get this to work without using two throughstreams ###
   R             = D2.create_throughstream()
+  output        = D2.create_throughstream()
   #.........................................................................................................
   $unwrap = $ ( event, send ) =>
     [ type, tail... ] = event
-    debug '©DlZ5w', 'unwrap'
     if event[ 0 ] is 'batch'
       [ _, _, payload..., ] = event
-      # send if payload.length is 1 then payload[ 0 ] else payload
-      send event
+      send if payload.length is 1 then payload[ 0 ] else payload
+  #.........................................................................................................
+  $deliver = $ ( event, send ) => R.write event
   #.........................................................................................................
   me.on type_with_id, ( event ) ->
     if event?
-      R.write event
+      output.write event
     else
-      help "#{type_with_id} completed"
+      # help "#{type_with_id} completed"
       me.removeAllListeners type_with_id
-      R.end()
+      output.end()
   #.........................................................................................................
   if sorted
-    R # = R
-      .pipe $ ( data, send ) ->
-        urge 'sort'
-        send data
-      .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
-        percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
-        efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
-        info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
-          efficiency: #{efficiency}"""
+    output
+      .pipe D2.$densort 1, 0
       .pipe $unwrap
+      .pipe $deliver
   #.........................................................................................................
   else
-    R
+    output
       .pipe $unwrap
+      .pipe $deliver
   #.........................................................................................................
   me.emit type_with_id, data
   return R
+
+      # .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
+      #   percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
+      #   efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
+      #   info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
+      #     efficiency: #{efficiency}"""
 
 #-----------------------------------------------------------------------------------------------------------
 socket.on 'helo', ( data ) =>
