@@ -42,12 +42,15 @@ TEXT                      = require 'coffeenode-text'
 ### https://github.com/loveencounterflow/pipedreams ###
 D                         = require 'pipedreams'
 D2                        = require 'pipedreams2'
-$                         = D.remit.bind D
+$                         = D2.remit.bind D
 #...........................................................................................................
 random_integer            = CND.get_rnd_int 592, 762
 #...........................................................................................................
 new_socket                = require 'socket.io-client'
 socket                    = new_socket 'http://0.0.0.0:3000/'
+# #...........................................................................................................
+# ### https://github.com/turbonetix/socket.io-events ###
+# new_router                = require 'socket.io-events'
 
 ### **NB** difference to server side:
   * no `connection` event, but `connect`
@@ -61,6 +64,14 @@ socket.on 'reconnect_error',   -> help "client: reconnect_error"
 socket.on 'reconnect_failed',  -> help "client: reconnect_failed"
 socket.on 'reconnecting',      -> help "client: reconnecting"
 
+original_onevent = socket.onevent.bind socket
+socket.onevent = ( Q ) ->
+  [ type, data, ] = Q[ 'data' ]
+  # warn '©HRjXh', type, JSON.stringify data
+  original_onevent Q
+
+# socket.on 'dump#672126', ( P... ) ->
+#   urge '©4djLo', P
 
 #-----------------------------------------------------------------------------------------------------------
 socket.on 'connect', ( P... ) ->
@@ -68,50 +79,88 @@ socket.on 'connect', ( P... ) ->
   ### TAINT get address from connection / options ###
   help "SoBa ソバ Client connected to http://0.0.0.0:3000/"
   socket.emit 'helo'
-  count       = 10
+  count       = 3
   skip        = 0
   limit       = skip + count
   # prefix      = 'os|reading/py'
   # prefix      = 'os|strokeorder/short:333|'
-  prefix      = 'so|glyph:彡|'
-  urge "prefix: #{rpr prefix}"
-  stream      = SOBAC.dump_ng socket, { take: limit, skip: skip, prefix: prefix, }
-  stream.pipe D2.$show()
   # SOBAC.show_glyph_pods socket, null, ( P... ) -> debug '©81poA', P
+  CHR         = require 'coffeenode-chr'
+  glyphs      = CHR.chrs_from_text '〇一二三四五六七八九十百千萬'#'
+  # #---------------------------------------------------------------------------------------------------------
+  # for glyph in glyphs
+  #   prefix      = "so|glyph:#{glyph}"
+  #   urge "prefix: #{rpr prefix}"
+  #   stream      = SOBAC.dump_ng socket, { take: limit, skip: skip, prefix: prefix, }
+  #   stream.pipe D2.$show()
+  #---------------------------------------------------------------------------------------------------------
+  count = 0
+  confluence  = D2.create_throughstream()
+  confluence
+    .pipe SOBAC.$details_from_glyph socket, 'dump'
+    .pipe $ ( event, send, end ) =>
+      count += 1
+      if event? then  info "-<#{count}>-", "#{event[ 1 ]} #{event[ 2 ][ 'key' ]}"
+      else            warn '---'
+      send event
+      if end?
+        warn "stream ended"
+        end()
+  #.........................................................................................................
+  for glyph in glyphs
+    confluence.write glyph
+  confluence.end()
 
+  # output        = D2.create_throughstream()
+  # output
+  #   .pipe $ ( data, send ) ->
+  #     # CND.dir send
+  #     debug '©YZEYm', data
+  # for idx in [ 10 .. 30 ]
+  #   output.write idx
+  # output.end()
 
-# #-----------------------------------------------------------------------------------------------------------
-# @show_glyph_pods = ( me, settings, handler ) ->
-#   CHR     = require 'coffeenode-chr'
-#   glyphs  = CHR.chrs_from_text '〇一二三四五六七八九'
-#   input   = D2.create_throughstream()
-#   idx     = -1
-#   #.........................................................................................................
-#   stream_settings       =
-#     'encoding':       'utf-8'
-#     'decodeStrings':  yes # ???
-#     'objectMode':     yes
-#   stream        = wrap_as_socket_stream.createStream stream_settings
-#   stream_socket = wrap_as_socket_stream socket
-#   #.........................................................................................................
-#   input
-#     .pipe $ ( chr, send ) ->
-#       idx  += +1
-#       key   = "so|glyph:#{glyph}|pod:$value|"
-#       query = eq: key
-#       event = [ 'query', 'get', query, ]
-#       batch = [ 'batch', idx, event, ]
-#       stream_socket.emit 'xxx', stream, batch
-#   #.........................................................................................................
-#   # stream
-#   #   .pipe D2.$show()
-#   #.........................................................................................................
-#   for glyph in glyphs
-#     input.write glyph
+  # socket.emit 'dump#672126', { skip: 0, take: 3, prefix: 'so|glyph:〇|' }
+  # socket.on 'dump#672126', ( P ) ->
+  #   debug '©ORUuU', P
 
+  # prefix      = 'so|glyph:彡|'
+  # urge "prefix: #{rpr prefix}"
+  # stream      = SOBAC.dump_ng socket, { take: limit, skip: skip, prefix: prefix, }
+  # stream.pipe D2.$show()
+
+#-----------------------------------------------------------------------------------------------------------
+socket.on 'helo', ( data ) =>
+  help 'updated-client-id', data[ 'client-id' ]
 
 #-----------------------------------------------------------------------------------------------------------
 @_new_id = -> random_integer 1e5, 1e6
+
+#-----------------------------------------------------------------------------------------------------------
+### TAINT `me` simplifyingly set to `socket` ###
+@$details_from_glyph = ( me, type ) ->
+  return $ ( glyph, send ) =>
+    send.pause()
+    id            = @_new_id()
+    type_with_id  = "#{type}##{id}"
+    me.on type_with_id, ( event ) =>
+      send event
+      send.resume() unless event?
+    me.emit type_with_id, { take: 3, prefix: "so|glyph:#{glyph}|", }
+
+#-----------------------------------------------------------------------------------------------------------
+### TAINT `me` simplifyingly set to `socket` ###
+@$xxxxxxxxxxxxxx = ( me ) ->
+  return $ ( event, send ) =>
+    send.pause()
+    [ type
+      payload...  ] = event
+    id              = @_new_id()
+    type_with_id    = "#{type}##{id}"
+    me.on type_with_id, ( event ) =>
+      send event
+      send.resume() unless event?
+    me.emit type_with_id, payload...
 
 #-----------------------------------------------------------------------------------------------------------
 @dump_ng = ( me, settings ) ->
@@ -148,7 +197,7 @@ socket.on 'connect', ( P... ) ->
   #.........................................................................................................
   if sorted
     output
-      .pipe D2.$densort 1, 0
+      .pipe D2.$densort 1, 0 #, true
       .pipe $unwrap
       .pipe $deliver
   #.........................................................................................................
@@ -160,15 +209,34 @@ socket.on 'connect', ( P... ) ->
   me.emit type_with_id, data
   return R
 
-      # .pipe D2.$densort 1, 0, ( [ event_count, max_buffer_size, ] ) ->
-      #   percentage = (     max_buffer_size / event_count * 100  ).toFixed 2
-      #   efficiency = ( 1 - max_buffer_size / event_count        ).toFixed 2
-      #   info """of #{event_count} elements, up to #{max_buffer_size} (#{percentage}%) had to be buffered;
-      #     efficiency: #{efficiency}"""
-
-#-----------------------------------------------------------------------------------------------------------
-socket.on 'helo', ( data ) =>
-  help 'updated-client-id', data[ 'client-id' ]
+# #-----------------------------------------------------------------------------------------------------------
+# @show_glyph_pods = ( me, settings, handler ) ->
+#   CHR     = require 'coffeenode-chr'
+#   glyphs  = CHR.chrs_from_text '〇一二三四五六七八九'
+#   input   = D2.create_throughstream()
+#   idx     = -1
+#   #.........................................................................................................
+#   stream_settings       =
+#     'encoding':       'utf-8'
+#     'decodeStrings':  yes # ???
+#     'objectMode':     yes
+#   stream        = wrap_as_socket_stream.createStream stream_settings
+#   stream_socket = wrap_as_socket_stream socket
+#   #.........................................................................................................
+#   input
+#     .pipe $ ( chr, send ) ->
+#       idx  += +1
+#       key   = "so|glyph:#{glyph}|pod:$value|"
+#       query = eq: key
+#       event = [ 'query', 'get', query, ]
+#       batch = [ 'batch', idx, event, ]
+#       stream_socket.emit 'xxx', stream, batch
+#   #.........................................................................................................
+#   # stream
+#   #   .pipe D2.$show()
+#   #.........................................................................................................
+#   for glyph in glyphs
+#     input.write glyph
 
 
 ############################################################################################################
