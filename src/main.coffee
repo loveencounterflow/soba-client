@@ -86,7 +86,7 @@ socket.on 'connect', ( P... ) ->
   # prefix      = 'os|strokeorder/short:333|'
   # SOBAC.show_glyph_pods socket, null, ( P... ) -> debug '©81poA', P
   CHR         = require 'coffeenode-chr'
-  glyphs      = CHR.chrs_from_text '〇一二三四五六七八九十百千萬'#'
+  glyphs      = CHR.chrs_from_text '一二三'#〇四五六七八九十百千萬'
   # #---------------------------------------------------------------------------------------------------------
   # for glyph in glyphs
   #   prefix      = "so|glyph:#{glyph}"
@@ -97,7 +97,11 @@ socket.on 'connect', ( P... ) ->
   count = 0
   confluence  = D2.create_throughstream()
   confluence
-    .pipe SOBAC.$details_from_glyph socket, 'dump'
+    # .pipe SOBAC.$details_from_glyph socket, 'dump'
+    .pipe $ ( glyph, send ) =>
+      send [ 'dump', { take: 30, prefix: "so|glyph:#{glyph}|reading/py", }, ]
+    # .pipe SOBAC.$emit_groups socket
+    .pipe SOBAC.$emit socket
     .pipe $ ( event, send, end ) =>
       count += 1
       if event? then  info "-<#{count}>-", "#{event[ 1 ]} #{event[ 2 ][ 'key' ]}"
@@ -137,30 +141,121 @@ socket.on 'helo', ( data ) =>
 @_new_id = -> random_integer 1e5, 1e6
 
 #-----------------------------------------------------------------------------------------------------------
-### TAINT `me` simplifyingly set to `socket` ###
-@$details_from_glyph = ( me, type ) ->
-  return $ ( glyph, send ) =>
-    send.pause()
-    id            = @_new_id()
-    type_with_id  = "#{type}##{id}"
-    me.on type_with_id, ( event ) =>
-      send event
-      send.resume() unless event?
-    me.emit type_with_id, { take: 3, prefix: "so|glyph:#{glyph}|", }
+# ### TAINT `me` simplifyingly set to `socket` ###
+# @$details_from_glyph = ( me, type ) ->
+#   return $ ( glyph, send ) =>
+#     send.pause()
+#     id            = @_new_id()
+#     type_with_id  = "#{type}##{id}"
+#     me.on type_with_id, ( event ) =>
+#       send event
+#       unless event?
+#         send.resume()
+#         me.removeAllListeners type_with_id
+#     me.emit type_with_id, { take: 3, prefix: "so|glyph:#{glyph}|", }
 
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT `me` simplifyingly set to `socket` ###
-@$xxxxxxxxxxxxxx = ( me ) ->
+@$emit_groups = ( me ) ->
+  ### In a stream of incoming 'trigger' events of the form `[ type, payload..., ]`, the `$emit_groups` transform
+  will emit events one by one to the far side using the WebSocket connection represented by `me`; it will
+  pause the stream between events until the far side has signalled completion for the present event by
+  sending a `null` event. Thus, a simple synchronization between client and server is achieved. Furthermore,
+  randomly individualized events of the form `[ "#{type}##{id}", ... ]` are actually used in order to
+  prevent the handler from inadvertently catching spurious events originating from concurrent code. All
+  event listeners are cleared on completion. Downstream transforms will see multiple `null` events, one for
+  each of all the incoming trigger events.
+
+  Example (with a database of CJK characters and a backend that supports a `dump` event):
+
+  ```coffee
+  glyphs      = CHR.chrs_from_text '一二三'
+  count       = 0
+  confluence  = D2.create_throughstream()
+  confluence
+    .pipe $ ( glyph, send ) =>
+      send [ 'dump', { prefix: "so|glyph:#{glyph}|reading/py", }, ]
+    .pipe SOBAC.$emit_groups socket
+    .pipe $ ( event, send, end ) =>
+      count += 1
+      if event? then  info "-<#{count}>-", "#{event[ 1 ]} #{event[ 2 ][ 'key' ]}"
+      else            warn '---'
+      send event
+      if end?
+        warn "stream ended"
+        end()
+  for glyph in glyphs
+    confluence.write glyph
+  confluence.end()
+  ```
+
+  This will produce:
+
+  ```
+  -<1>- 0 so|glyph:一|reading/py/base:yi|0
+  -<2>- 1 so|glyph:一|reading/py:yī|0
+  ---
+  -<4>- 0 so|glyph:二|reading/py/base:er|0
+  -<5>- 1 so|glyph:二|reading/py:èr|0
+  ---
+  -<7>- 0 so|glyph:三|reading/py/base:san|0
+  -<8>- 1 so|glyph:三|reading/py:sān|0
+  ---
+  ´´´
+
+  We practically have 'expanded' the stream from glyphs to LevelDB keys containing further information. Of
+  course, depending on data available, each block may contain any number of response events. By contrast,
+  what you will get using the non-grouping `$emit` transform instead is this:
+
+  ´´´
+  -<1>- 0 so|glyph:一|reading/py/base:yi|0
+  -<2>- 0 so|glyph:二|reading/py/base:er|0
+  -<3>- 0 so|glyph:三|reading/py/base:san|0
+  -<4>- 1 so|glyph:一|reading/py:yī|0
+  -<5>- 1 so|glyph:二|reading/py:èr|0
+  -<6>- 1 so|glyph:三|reading/py:sān|0
+  ´´´
+  ###
+  #.........................................................................................................
   return $ ( event, send ) =>
     send.pause()
     [ type
       payload...  ] = event
     id              = @_new_id()
     type_with_id    = "#{type}##{id}"
-    me.on type_with_id, ( event ) =>
-      send event
-      send.resume() unless event?
-    me.emit type_with_id, payload...
+    #.......................................................................................................
+    do ( type_with_id ) =>
+      me.on type_with_id, ( event ) =>
+        send event
+        unless event?
+          send.resume()
+          me.removeAllListeners type_with_id
+      me.emit type_with_id, payload...
+
+#-----------------------------------------------------------------------------------------------------------
+### TAINT `me` simplifyingly set to `socket` ###
+@$emit = ( me ) ->
+  last_twi  = null
+  #.........................................................................................................
+  return $ ( event, send, end ) =>
+    if event?
+      [ type
+        payload...  ] = event
+      id              = @_new_id()
+      type_with_id    = "#{type}##{id}"
+      #.....................................................................................................
+      do ( type_with_id ) =>
+        last_twi = type_with_id if end?
+        me.on type_with_id, ( event ) =>
+          if event?
+            send event
+          unless event?
+            me.removeAllListeners type_with_id
+            end() if last_twi is type_with_id
+        #...................................................................................................
+        me.emit type_with_id, payload...
+    #.......................................................................................................
+    end() if end? and not event?
 
 #-----------------------------------------------------------------------------------------------------------
 @dump_ng = ( me, settings ) ->
