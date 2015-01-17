@@ -1,6 +1,27 @@
 
 
 
+### TAINT stopgap solution ###
+HOLLERITH = {}
+
+#-----------------------------------------------------------------------------------------------------------
+HOLLERITH.$split_os_key = ( keep_key = no ) ->
+  ### TAINT code duplication ###
+  ### TAINT use library method ###
+  return $ ( key, send ) =>
+    [ phrase_type
+      object
+      subject
+      idxs    ] = key.split '|'
+    [ ok, ov  ] =  object.split ':'
+    [ sk, sv  ] = subject.split ':'
+    idxs  = idxs.split ','
+    idxs  = ( parseInt idx, 10 for idx in idxs )
+    send if keep_key then [ key, sk, sv, ok, ov, idxs, ] else [ sk, sv, ok, ov, idxs, ]
+
+
+
+
 ###
 #===========================================================================================================
 
@@ -37,12 +58,16 @@ urge                      = CND.get_logger 'urge',    badge
 whisper                   = CND.get_logger 'whisper', badge
 help                      = CND.get_logger 'help',    badge
 #...........................................................................................................
+### https://github.com/AndreasMadsen/clarify, .../trace ###
+require 'clarify'
+require 'trace'
+Error.stackTraceLimit = Infinity
+#...........................................................................................................
 TEXT                      = require 'coffeenode-text'
 #...........................................................................................................
-### https://github.com/loveencounterflow/pipedreams ###
-D                         = require 'pipedreams'
+### https://github.com/loveencounterflow/pipedreams2 ###
 D2                        = require 'pipedreams2'
-$                         = D2.remit.bind D
+$                         = D2.remit.bind D2
 #...........................................................................................................
 random_integer            = CND.get_rnd_int 592, 762
 #...........................................................................................................
@@ -73,20 +98,134 @@ socket.onevent = ( Q ) ->
 # socket.on 'dump#672126', ( P... ) ->
 #   urge '©4djLo', P
 
+
+
+`
+var fs = require('fs');
+
+// There is no limit for the size of the stack trace (v8 default is 10)
+
+setTimeout(function () {
+  fs.readFile(__filename, function () {
+    process.nextTick(function () {
+      throw new Error("custom error");
+    });
+  });
+}, 200);
+`
+
+
+
+
+
+
+
+
 #-----------------------------------------------------------------------------------------------------------
 socket.on 'connect', ( P... ) ->
   help "SoBa ソバ Client running on Node v#{process.versions[ 'node' ]}"
   ### TAINT get address from connection / options ###
   help "SoBa ソバ Client connected to http://0.0.0.0:3000/"
   socket.emit 'helo'
-  count       = 3
-  skip        = 0
-  limit       = skip + count
-  # prefix      = 'os|reading/py'
-  # prefix      = 'os|strokeorder/short:333|'
-  # SOBAC.show_glyph_pods socket, null, ( P... ) -> debug '©81poA', P
+  #.........................................................................................................
+  # SOBAC.show_entries_for_glyphs socket
+  SOBAC.show_entries_for_prefixes socket
+
+#-----------------------------------------------------------------------------------------------------------
+@show_entries_for_prefixes = ( socket ) ->
+  count     = 0
+  prefixes  = [
+    # 'os|guide/kwic/sortcode:0815'
+    'os|guide/kwic/sortcode:0713'
+    ]
+  influence   = D2.create_throughstream()
+  effluence   = D2.create_throughstream()
+  influence.on 'end',    -> whisper "inf. end"
+  influence.on 'close',  -> whisper "inf. close"
+  influence.on 'finish', -> whisper "inf. finish"
+  effluence.on 'end',    -> whisper "eff. end"
+  effluence.on 'close',  -> whisper "eff. close"
+  effluence.on 'finish', -> whisper "eff. finish"
+  # dmz         = D2.ES.pause()
+  # dmz1        = D2.ES.pause()
+  #.........................................................................................................
+  influence
+    .pipe $ ( prefix, send ) => send [ 'dump', { take: 10, prefix: prefix, }, ]
+    .pipe SOBAC.$emit_groups socket #, { echo: yes, }
+    .pipe $ ( event, send ) => send key = event[ 2 ][ 'key' ] if event?
+    .pipe HOLLERITH.$split_os_key()
+    .pipe $ ( [ sk, sv, ok, ov, idxs, ], send, end ) =>
+      glyph   = sv
+      kwic_sc = ov
+      setImmediate -> effluence.write [ glyph, kwic_sc, ] # 'glyph with KWIC sortcode'
+      # effluence.write [ glyph, kwic_sc, ] # 'glyph with KWIC sortcode'
+      if end?
+        setImmediate -> effluence.end()
+        setImmediate -> end()
+  #.........................................................................................................
+  effluence
+    .pipe D2.$show()
+    .pipe $ ( [ glyph, kwic_sc, ], send ) =>
+      send [ 'dump', { take: 2, prefix: "so|glyph:#{glyph}|rank", rsvp: { glyph, kwic_sc, } }, ]
+    .pipe $ ( data, send, end ) =>
+      send data
+      # debug '©kN33r', effluence.readable, effluence.writable
+      # CND.dir effluence
+      if end?
+        setImmediate ->
+          urge "ended"
+          end()
+    .pipe SOBAC.$emit_groups socket  #, { echo: yes, }
+    .pipe $ ( data, send ) => help data if data?; send data
+  #.........................................................................................................
+  for prefix in prefixes
+    influence.write prefix
+  influence.end()
+
+# #-----------------------------------------------------------------------------------------------------------
+# @show_entries_for_prefixes = ( socket ) ->
+#   count     = 0
+#   prefixes  = [
+#     # 'os|guide/kwic/sortcode:0815'
+#     'os|guide/kwic/sortcode:0713'
+#     ]
+#   confluence  = D2.create_throughstream()
+#   #.........................................................................................................
+#   confluence
+#     #.......................................................................................................
+#     .pipe $ ( prefix, send ) =>
+#       send [ 'dump', { take: 250, prefix: prefix, }, ]
+#     #.......................................................................................................
+#     .pipe SOBAC.$emit_groups socket #, { echo: yes, }
+#     #.......................................................................................................
+#     .pipe $ ( event, send, end ) =>
+#       count += 1
+#       #.....................................................................................................
+#       if event?
+#         count_txt = TEXT.flush_right count, 3, ' '
+#         [ type, ..., ] = event
+#         key   = event[ 2 ][ 'key' ]
+#         front = key[ 0 ... 72 ]
+#         rear  = key[ key.length - 16 ... ]
+#         info "(#{count_txt}) #{front} ... #{rear}"
+#       #.....................................................................................................
+#       send event
+#       #.....................................................................................................
+#       if end?
+#         warn "stream ended"
+#         end()
+#   #.........................................................................................................
+#   for prefix in prefixes
+#     confluence.write prefix
+#   confluence.end()
+
+#-----------------------------------------------------------------------------------------------------------
+@show_entries_for_glyphs = ( socket ) ->
   CHR         = require 'coffeenode-chr'
-  glyphs      = CHR.chrs_from_text '一二三'#〇四五六七八九十百千萬'
+  # glyphs      = CHR.chrs_from_text '一二三'#〇四五六七八九十百千萬'
+  count       = 0
+  glyphs      = CHR.chrs_from_text '片版八兌附楚國'#〇四五六七八九十百千萬'
+  # glyphs      = ( CHR.as_uchr cid for cid in [ 0x4e00 .. 0x4fff ] )
   # #---------------------------------------------------------------------------------------------------------
   # for glyph in glyphs
   #   prefix      = "so|glyph:#{glyph}"
@@ -97,16 +236,30 @@ socket.on 'connect', ( P... ) ->
   count = 0
   confluence  = D2.create_throughstream()
   confluence
-    # .pipe SOBAC.$details_from_glyph socket, 'dump'
+    # .pipe $ ( glyph, send ) =>
+    #   CND.dir send[ '%self' ]
     .pipe $ ( glyph, send ) =>
-      send [ 'dump', { take: 30, prefix: "so|glyph:#{glyph}|reading/py", }, ]
-    # .pipe SOBAC.$emit_groups socket
-    .pipe SOBAC.$emit socket
+      # send [ 'dump', { take: 30, prefix: "so|glyph:#{glyph}|guide/sortcode",      'glyph': glyph, }, ]
+      send [ 'dump', { take: 30, prefix: "so|glyph:#{glyph}|guide/kwic/sortcode", 'glyph': glyph, }, ]
+      # send [ 'dump', { take: 30, prefix: "so|glyph:#{glyph}|reading/py", 'glyph': glyph, }, ]
+      # send [ 'dump', { take: 200, prefix: "so|glyph:#{glyph}|", 'glyph': glyph, }, ]
+    .pipe SOBAC.$emit_groups socket, { echo: yes, }
+    # .pipe SOBAC.$emit socket
     .pipe $ ( event, send, end ) =>
       count += 1
-      if event? then  info "-<#{count}>-", "#{event[ 1 ]} #{event[ 2 ][ 'key' ]}"
-      else            warn '---'
+      #.....................................................................................................
+      if event?
+        count_txt = TEXT.flush_right count, 3, ' '
+        [ type, ..., ] = event
+        if type is 'batch' then info "(#{count_txt}) #{event[ 1 ]} #{event[ 2 ][ 'key' ]}"
+        else                    urge event[ 1 ][ 'glyph' ]
+      #.....................................................................................................
+      else
+        null
+        # warn '---'
+      #.....................................................................................................
       send event
+      #.....................................................................................................
       if end?
         warn "stream ended"
         end()
@@ -156,7 +309,7 @@ socket.on 'helo', ( data ) =>
 
 #-----------------------------------------------------------------------------------------------------------
 ### TAINT `me` simplifyingly set to `socket` ###
-@$emit_groups = ( me ) ->
+@$emit_groups = ( me, settings ) ->
   ### In a stream of incoming 'trigger' events of the form `[ type, payload..., ]`, the `$emit_groups` transform
   will emit events one by one to the far side using the WebSocket connection represented by `me`; it will
   pause the stream between events until the far side has signalled completion for the present event by
@@ -217,19 +370,28 @@ socket.on 'helo', ( data ) =>
   ´´´
   ###
   #.........................................................................................................
-  return $ ( event, send ) =>
+  echo = settings?[ 'echo' ] ? no
+  #.........................................................................................................
+  return $ ( trigger_event, send ) =>
     send.pause()
     [ type
-      payload...  ] = event
+      payload...  ] = trigger_event
     id              = @_new_id()
     type_with_id    = "#{type}##{id}"
     #.......................................................................................................
     do ( type_with_id ) =>
+      is_first = yes
+      #.....................................................................................................
       me.on type_with_id, ( event ) =>
+        if echo and is_first
+          is_first = no
+          send trigger_event
         send event
         unless event?
+          # send.read()
           send.resume()
           me.removeAllListeners type_with_id
+      #.....................................................................................................
       me.emit type_with_id, payload...
 
 #-----------------------------------------------------------------------------------------------------------
